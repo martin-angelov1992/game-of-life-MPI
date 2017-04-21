@@ -61,6 +61,16 @@ int main(int argc, char **argv) {
 
 	max_y = calc_max_y(rank);
 
+board = malloc(N * sizeof(char*));
+for (int i = 0; i < N; i++) {
+  board[i] = malloc(max_y * sizeof(char));
+}
+
+temp = malloc(N * sizeof(char*));
+for (int i = 0; i < N; i++) {
+  temp[i] = malloc(max_y * sizeof(char));
+}
+
     randomize_board();
 
 	while (iterations_left > 0) {
