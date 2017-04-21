@@ -84,7 +84,7 @@ char **wait_for_all() {
 	char **his_board;
 	MPI_Status	status;
 	for (int i=0; i<size-1; ++i) {
-		MPI_Recv(&his_board, ceil((double)boardSize/size)*N, MPI_CHAR, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD,
+		MPI_Recv(&his_board, ceil((double)N/size)*N, MPI_CHAR, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD,
 		      &status);
 		int his_max_y = calc_max_y(status.MPI_SOURCE);
 		int his_start_y = calc_start_y(status.MPI_SOURCE);
@@ -109,8 +109,8 @@ int calc_start_y(int rank) {
 	int ranksWithLeftover = rank > leftoverRows ? leftoverRows : rank;
 	int ranksWithoutLeftover = rank > leftoverRows ? rank - leftoverRows : 0;
 
-	return ranksWithLeftover*(int)ceil((double)boardSize/size) + 
-			ranksWithoutLeftover*(int)floor((double)boardSize/size); 
+	return ranksWithLeftover*(int)ceil((double)N/size) + 
+			ranksWithoutLeftover*(int)floor((double)N/size); 
 }
 
 void send_my_board() {
@@ -134,12 +134,12 @@ void wait_for_others() {
 }
 
 int calc_max_y(int rank) {
-	int leftoverRows = boardSize % size;
+	int leftoverRows = N % size;
 
 	if (rank < leftoverRows) {
-		return (int)ceil((double)boardSize/size)+1;
+		return (int)ceil((double)N/size)+1;
 	} else {
-		return (int)floor((double)boardSize/size)+1;
+		return (int)floor((double)N/size)+1;
 	}
 }
 
