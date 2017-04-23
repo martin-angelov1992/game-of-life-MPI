@@ -5,6 +5,7 @@
 #include <math.h>
 #include <SDL/SDL.h>
 #include <SDL/SDL_image.h>
+#include <mpi.h>
 
 #define ROWS 60
 #define COLS 60
@@ -40,7 +41,7 @@ void update_board(void);
 void initialize_cells_array(void);
 
 int iterations = 20;
-int N = 100;
+int N = 2000;
 int max_y;
 
 char **board;
@@ -59,17 +60,12 @@ int main(int argc, char **argv) {
     /* Get process rank in the world communicator */
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+	double start_time = MPI_Wtime();
+
 	max_y = calc_max_y(rank);
 
-board = malloc(N * sizeof(char*));
-for (int i = 0; i < N; i++) {
-  board[i] = malloc(max_y * sizeof(char));
-}
-
-temp = malloc(N * sizeof(char*));
-for (int i = 0; i < N; i++) {
-  temp[i] = malloc(max_y * sizeof(char));
-}
+	board = malloc_2d_array(N, max_y+1);
+	temp = malloc_2d_array(N, max_y+1);
 
     randomize_board();
 
@@ -80,35 +76,63 @@ for (int i = 0; i < N; i++) {
 	}
 
 	if (rank == 0) {
+		int start_y = calc_start_y(rank);
+
 		char **whole_board = wait_for_all();
 
-		pgmwrite(whole_board);
+		merge_board(whole_board, board, start_y, start_y + max_y-2);
+
+		pgmwrite("result", whole_board);
 	} else {
 		send_my_board();
 	}
+
+	double end_time = MPI_Wtime();
+
+	if (rank == 0) {
+		printf("Time taken: %f\n", end_time - start_time);
+	}
+
+	MPI_Finalize();
+}
+
+char **malloc_2d_array(int cols, int rows) {
+	int *data = (int *)malloc(rows*cols*sizeof(int));
+	int **arr = (int **)malloc(rows*sizeof(int*));
+	int i;
+	for (i = 0; i<rows; i++)
+		arr[i] = &(data[cols*i]);
+
+	return arr;
 }
 
 char **wait_for_all() {
-	char[N][N] whole_board;
+	char** whole_board = malloc_2d_array(N, N);
 
-	char **his_board;
+	char **his_board = malloc_2d_array(N, ceil((double)N / size));
 	MPI_Status	status;
-	for (int i=0; i<size-1; ++i) {
-		MPI_Recv(&his_board, ceil((double)N/size)*N, MPI_CHAR, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD,
+	int i;
+	for (i=0; i<size-1; ++i) {
+		MPI_Recv(&(his_board[0][0]), ceil((double)N/size)*N, MPI_CHAR, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD,
 		      &status);
 		int his_max_y = calc_max_y(status.MPI_SOURCE);
 		int his_start_y = calc_start_y(status.MPI_SOURCE);
 
-		merge_board(whole_board, his_board, his_start_y, his_start_y+his_max_y-2);
+		int start_y = his_start_y;
+		int end_y = his_start_y + his_max_y - 2;
+
+		merge_board(whole_board, his_board, start_y, end_y);
 	}
 
 	return whole_board;
 }
 
 void merge_board(char **big_board, char **small_board, int start_y, int end_y) {
-	for (int y = 0; y < end_y - start_y; ++y) {
-		for (int x = 0; x < N; ++x) {
-			big_board[x][start_y+y] = small_board[y][x];
+	int y;
+	int x;
+	for (y = 0; y < end_y - start_y; ++y) {
+		for (x = 0; x < N; ++x) {
+			big_board[start_y + y][x] = small_board[y][x];
 		}
 	}
 }
@@ -124,23 +148,23 @@ int calc_start_y(int rank) {
 }
 
 void send_my_board() {
-	MPI_Bsend(&board[1][0], (max_y-2)*N, MPI_CHAR, 0, MPI_ANY_TAG, MPI_COMM_WORLD);
+	MPI_Send(&board[1][0], (max_y-2)*N, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
 }
 
 void notify_others() {
 	int prev_rank = (rank - 1 + size) % size;
-	int next_rank = rank + 1 % size;
+	int next_rank = (rank + 1) % size;
 
-	MPI_Bsend(&board[2][0], N, MPI_CHAR, prev_rank, MPI_ANY_TAG, MPI_COMM_WORLD);
-	MPI_Bsend(&board[max_y-1][0], N, MPI_CHAR, next_rank, MPI_ANY_TAG, MPI_COMM_WORLD);
+	MPI_Send(&(board[1][0]), N, MPI_CHAR, prev_rank, 0, MPI_COMM_WORLD);
+	MPI_Send(&(board[max_y-1][0]), N, MPI_CHAR, next_rank, 0, MPI_COMM_WORLD);
 }
 
 void wait_for_others() {
 	int prev_rank = (rank - 1 + size) % size;
-	int next_rank = rank + 1 % size;
+	int next_rank = (rank + 1) % size;
 
-	MPI_Recv(&board[0][0], N, MPI_CHAR, prev_rank, MPI_ANY_TAG, MPI_COMM_WORLD);
-	MPI_Recv(&board[max_y][0], N, MPI_CHAR, next_rank, MPI_ANY_TAG, MPI_COMM_WORLD);
+	MPI_Recv(&board[0][0], N, MPI_CHAR, prev_rank, MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	MPI_Recv(&board[max_y][0], N, MPI_CHAR, next_rank, MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 }
 
 int calc_max_y(int rank) {
@@ -154,11 +178,17 @@ int calc_max_y(int rank) {
 }
 
 void randomize_board(void) {
-    for (int y = 1; y <= max_y-1; y++) {
-        for (int x = 0; x < N; x++) {
+	int y;
+	int x;
+    for (y = 1; y <= max_y-1; y++) {
+        for (x = 0; x < N; x++) {
             if (rand() % 5 == 0) {
                 board[y][x] = ON;
-            }
+			}
+			else 
+			{
+				board[y][x] = OFF;
+			}
             temp[y][x] = board[y][x];
         }
     }
@@ -193,8 +223,11 @@ void update_board(void) {
      */
     int neighbours = 0;
 
-    for (int y = 1; y <= max_y; y++) {
-        for (int x = 0; x < N; x++) {
+	int y;
+	int x;
+
+    for (y = 1; y <= max_y; y++) {
+        for (x = 0; x < N; x++) {
             neighbours = num_neighbours(x, y);
             if (neighbours < 2 && board[y][x] == ON) {
                 temp[y][x] = OFF; /* Dies by underpopulation. */
@@ -207,8 +240,8 @@ void update_board(void) {
         }
     }
 
-    for (int y = 1; y <= max_y; y++) {
-        for (int x = 0; x < N; x++) {
+    for (y = 1; y <= max_y; y++) {
+        for (x = 0; x < N; x++) {
             board[y][x] = temp[y][x];
         }
     }
@@ -218,7 +251,7 @@ void pgmwrite (char *filename, char **arr)
 {
     FILE *fp;
 
-	int tresh = 255;
+	int thresh = 255;
 
     if (NULL == (fp = fopen(filename, "w")))
     {
@@ -231,12 +264,15 @@ void pgmwrite (char *filename, char **arr)
     fprintf(fp, "%d %d\n", N, N);
     fprintf(fp, "%d\n", (int)thresh);
 
-    for (int y = 0; y < N; y++) 
+	int y;
+	int x;
+
+    for (y = 0; y < N; y++) 
 	{
-		for (int x = 0; x < N; x++)
+		for (x = 0; x < N; x++)
         {
-			fprintf(fp, "%3d ", arr[y][x]*thresh);
-        }
+			fprintf(fp, "%3d ", arr[y][x] * thresh);
+		}
 		fprintf(fp, "\n");
 	}
    
