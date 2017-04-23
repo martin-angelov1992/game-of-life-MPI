@@ -4,7 +4,6 @@
 #include <time.h>
 #include <math.h>
 #include <SDL/SDL.h>
-#include <SDL/SDL_image.h>
 #include <mpi.h>
 
 #define ROWS 60
@@ -39,9 +38,10 @@ void randomize_board(void);
 int num_neighbours(int x, int y);
 void update_board(void);
 void initialize_cells_array(void);
+char **wait_for_all();
 
 int iterations = 20;
-int N = 2000;
+int N = 3000;
 int max_y;
 
 char **board;
@@ -49,6 +49,17 @@ char **temp;
 
 int size;
 int rank;
+
+
+char **malloc_2d_array(int cols, int rows) {
+	int *data = (int *)malloc(rows*cols*sizeof(int));
+	int **arr = (int **)malloc(rows*sizeof(int*));
+	int i;
+	for (i = 0; i<rows; i++)
+		arr[i] = &(data[cols*i]);
+
+	return arr;
+}
 
 int main(int argc, char **argv) {
 	int iterations_left = iterations;
@@ -71,6 +82,7 @@ int main(int argc, char **argv) {
 
 	while (iterations_left > 0) {
 		--iterations_left;
+		update_board();
 		notify_others();
 		wait_for_others();
 	}
@@ -94,16 +106,6 @@ int main(int argc, char **argv) {
 	}
 
 	MPI_Finalize();
-}
-
-char **malloc_2d_array(int cols, int rows) {
-	int *data = (int *)malloc(rows*cols*sizeof(int));
-	int **arr = (int **)malloc(rows*sizeof(int*));
-	int i;
-	for (i = 0; i<rows; i++)
-		arr[i] = &(data[cols*i]);
-
-	return arr;
 }
 
 char **wait_for_all() {
@@ -155,8 +157,10 @@ void notify_others() {
 	int prev_rank = (rank - 1 + size) % size;
 	int next_rank = (rank + 1) % size;
 
-	MPI_Send(&(board[1][0]), N, MPI_CHAR, prev_rank, 0, MPI_COMM_WORLD);
-	MPI_Send(&(board[max_y-1][0]), N, MPI_CHAR, next_rank, 0, MPI_COMM_WORLD);
+	MPI_Request request;
+	MPI_Isend(&(board[1][0]), N, MPI_CHAR, prev_rank, 0, MPI_COMM_WORLD,
+	&request);
+	MPI_Isend(&(board[max_y-1][0]), N, MPI_CHAR, next_rank, 0, MPI_COMM_WORLD, &request);
 }
 
 void wait_for_others() {
