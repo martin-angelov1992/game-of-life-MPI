@@ -78,7 +78,9 @@ int main(int argc, char **argv) {
 	board = malloc_2d_array(N, max_y+1);
 	temp = malloc_2d_array(N, max_y+1);
 
-    randomize_board();
+    	randomize_board();
+	notify_others();
+	wait_for_others();
 
 	while (iterations_left > 0) {
 		--iterations_left;
@@ -94,7 +96,7 @@ int main(int argc, char **argv) {
 
 		merge_board(whole_board, board, start_y, start_y + max_y-2);
 
-		pgmwrite("result", whole_board);
+		pgmwrite("result.pgm", whole_board);
 	} else {
 		send_my_board();
 	}
