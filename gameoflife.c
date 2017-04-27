@@ -71,6 +71,7 @@ int main(int argc, char **argv) {
     /* Get process rank in the world communicator */
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+	srand(time(NULL)^rank*size);
 	double start_time = MPI_Wtime();
 
 	max_y = calc_max_y(rank);
