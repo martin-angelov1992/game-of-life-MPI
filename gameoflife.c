@@ -52,8 +52,8 @@ int rank;
 
 
 char **malloc_2d_array(int cols, int rows) {
-	int *data = (int *)malloc(rows*cols*sizeof(int));
-	int **arr = (int **)malloc(rows*sizeof(int*));
+	char *data = (char *)malloc(rows*cols*sizeof(char));
+	char **arr = (char **)malloc(rows*sizeof(char*));
 	int i;
 	for (i = 0; i<rows; i++)
 		arr[i] = &(data[cols*i]);
