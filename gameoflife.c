@@ -135,7 +135,7 @@ char **wait_for_all() {
 void merge_board(char **big_board, char **small_board, int start_y, int end_y) {
 	int y;
 	int x;
-	for (y = 0; y < end_y - start_y; ++y) {
+	for (y = 0; y <= end_y - start_y; ++y) {
 		for (x = 0; x < N; ++x) {
 			big_board[start_y + y][x] = small_board[y][x];
 		}
