@@ -153,7 +153,7 @@ int calc_start_y(int rank) {
 }
 
 void send_my_board() {
-	MPI_Send(&board[1][0], (max_y-2)*N, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
+	MPI_Send(&board[1][0], (max_y-1)*N, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
 }
 
 void notify_others() {
